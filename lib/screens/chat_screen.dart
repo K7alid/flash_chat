@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flash_chat/cache_helper.dart';
 import 'package:flash_chat/constants.dart';
+import 'package:flash_chat/screens/welcome_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 User? loggedInUser;
 
@@ -14,7 +17,6 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _auth = FirebaseAuth.instance;
-  String messageText = '';
   var messageTextController = TextEditingController();
 
   getCurrentUser() async {
@@ -22,8 +24,6 @@ class _ChatScreenState extends State<ChatScreen> {
       final user = _auth.currentUser;
       if (user != null) {
         loggedInUser = user;
-        print(loggedInUser?.email);
-        print(loggedInUser?.uid);
       }
     } catch (e) {
       print(e);
@@ -40,13 +40,13 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: null,
+        automaticallyImplyLeading: false,
         actions: <Widget>[
           IconButton(
               icon: const Icon(Icons.logout),
               onPressed: () {
-                _auth.signOut();
-                Navigator.pop(context);
+                signOut(context);
+                Navigator.pushNamed(context, WelcomeScreen.id);
               }),
         ],
         title: const Text('⚡️Chat'),
@@ -66,19 +66,17 @@ class _ChatScreenState extends State<ChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: messageTextController,
-                      onChanged: (value) {
-                        messageText = value;
-                      },
                       decoration: kMessageTextFieldDecoration,
                     ),
                   ),
                   MaterialButton(
                     onPressed: () {
-                      messageTextController.clear();
                       FirebaseFirestore.instance.collection('messages').add({
-                        'text': messageText,
+                        'text': messageTextController.text,
+                        'dateTime': DateTime.now(),
                         'sender': loggedInUser?.email,
                       });
+                      messageTextController.clear();
                     },
                     child: const Text(
                       'Send',
@@ -101,7 +99,10 @@ class MessagesStream extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('messages').snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('messages')
+          .orderBy('dateTime')
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasData) {
           final messages = snapshot.data?.docs.reversed;
@@ -109,6 +110,7 @@ class MessagesStream extends StatelessWidget {
           for (var message in messages!) {
             final messageText = message['text'];
             final messageSender = message['sender'];
+            final dateTime = message['dateTime'];
 
             final currentUser = loggedInUser?.email;
 
@@ -116,6 +118,7 @@ class MessagesStream extends StatelessWidget {
               sender: messageSender,
               text: messageText,
               isMe: currentUser == messageSender,
+              dateTime: dateTime,
             );
             messageBubbles.add(messageBubble);
           }
@@ -144,16 +147,22 @@ class MessagesStream extends StatelessWidget {
 class MessageBubble extends StatelessWidget {
   final String sender;
   final String text;
+  final Timestamp dateTime;
   final bool isMe;
 
-  const MessageBubble(
-      {super.key,
-      required this.sender,
-      required this.text,
-      required this.isMe});
+  MessageBubble({
+    super.key,
+    required this.sender,
+    required this.text,
+    required this.isMe,
+    required this.dateTime,
+  });
 
   @override
   Widget build(BuildContext context) {
+    var dt =
+        DateTime.fromMicrosecondsSinceEpoch(dateTime.microsecondsSinceEpoch);
+
     return Padding(
       padding: const EdgeInsets.all(10.0),
       child: Column(
@@ -162,6 +171,13 @@ class MessageBubble extends StatelessWidget {
         children: [
           Text(
             sender,
+            style: const TextStyle(
+              color: Colors.black54,
+              fontSize: 12.0,
+            ),
+          ),
+          Text(
+            DateFormat('HH:mm, dd/MM/yyyy').format(dt),
             style: const TextStyle(
               color: Colors.black54,
               fontSize: 12.0,

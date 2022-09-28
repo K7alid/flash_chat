@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flash_chat/cache_helper.dart';
 import 'package:flash_chat/components/rounded_button.dart';
 import 'package:flash_chat/constants.dart';
 import 'package:flash_chat/screens/chat_screen.dart';
@@ -74,10 +75,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       email: emailController.text,
                       password: passwordController.text,
                     );
-                    setState(() {});
+                    CacheHelper.saveData(
+                        key: 'uId',
+                        value: FirebaseAuth.instance.currentUser!.uid);
                     if (newUser != null) {
                       setState(() {});
-                      Navigator.pushNamed(context, ChatScreen.id);
+                      Navigator.pushReplacementNamed(context, ChatScreen.id);
                     }
                     setState(() {
                       showSpinner = false;
